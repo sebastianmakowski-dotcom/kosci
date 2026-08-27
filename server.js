@@ -4,8 +4,15 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-// Wymuszamy omijanie restrykcji CORS
-const io = new Server(server, { cors: { origin: "*" } });
+
+// Wymuszenie pełnego wsparcia dla WebSocketów i CORS na Renderze
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    },
+    transports: ['websocket', 'polling']
+});
 
 app.use(express.static('public'));
 
@@ -48,11 +55,16 @@ function calculateScore(category, dice, isZreki) {
 }
 
 io.on('connection', (socket) => {
+    console.log(`[LOG] Nowe połączenie zweryfikowane: ${socket.id}`);
+
     socket.on('joinRoom', ({ roomId, playerName }) => {
+        console.log(`[LOG] Gracz "${playerName}" dołącza do pokoju: ${roomId}`);
+        socket.join(roomId);
+
         if (!rooms[roomId]) {
-            // Dodajemy jawne ID do obiektu pokoju
             rooms[roomId] = { id: roomId, players: [], currentPlayerIndex: 0, gameState: { dice: [1,1,1,1,1], heldDice: [false,false,false,false,false], rollsLeft: 3, started: false, lastRollWasFull: false } };
         }
+
         const room = rooms[roomId];
         let player = room.players.find(p => p.id === socket.id);
         if (!player) {
@@ -61,13 +73,17 @@ io.on('connection', (socket) => {
         } else {
             player.currentRoom = roomId;
         }
-        // GLOBALNY WYSTRZAŁ DANYCH
-        io.emit('updateRoom', room); 
+
+        io.to(roomId).emit('updateRoom', room);
+        console.log(`[LOG] Sukces w pokoju ${roomId}. Liczba osób: ${room.players.length}`);
     });
 
     socket.on('startGame', () => {
         const playerRoom = Object.values(rooms).find(r => r.players.some(p => p.id === socket.id));
-        if (playerRoom) { playerRoom.gameState.started = true; io.emit('updateRoom', playerRoom); }
+        if (playerRoom) {
+            playerRoom.gameState.started = true;
+            io.to(playerRoom.id).emit('updateRoom', playerRoom);
+        }
     });
 
     socket.on('roll', () => {
@@ -81,7 +97,7 @@ io.on('connection', (socket) => {
             }
             playerRoom.gameState.lastRollWasFull = (rolledCount === 5);
             playerRoom.gameState.rollsLeft--;
-            io.emit('updateRoom', playerRoom);
+            io.to(playerRoom.id).emit('updateRoom', playerRoom);
         }
     });
 
@@ -91,7 +107,7 @@ io.on('connection', (socket) => {
         const activePlayer = playerRoom.players[playerRoom.currentPlayerIndex];
         if (activePlayer?.id === socket.id && playerRoom.gameState.rollsLeft < 3) {
             playerRoom.gameState.heldDice[index] = !playerRoom.gameState.heldDice[index];
-            io.emit('updateRoom', playerRoom);
+            io.to(playerRoom.id).emit('updateRoom', playerRoom);
         }
     });
 
@@ -106,7 +122,7 @@ io.on('connection', (socket) => {
             playerRoom.gameState.rollsLeft = 3;
             playerRoom.gameState.lastRollWasFull = false;
             playerRoom.currentPlayerIndex = (playerRoom.currentPlayerIndex + 1) % playerRoom.players.length;
-            io.emit('updateRoom', playerRoom);
+            io.to(playerRoom.id).emit('updateRoom', playerRoom);
         }
     });
 
@@ -117,11 +133,12 @@ io.on('connection', (socket) => {
             if (room.players.length === 0) delete rooms[roomId];
             else {
                 if (room.currentPlayerIndex >= room.players.length) room.currentPlayerIndex = 0;
-                io.emit('updateRoom', room);
+                io.to(roomId).emit('updateRoom', room);
             }
         });
+        console.log(`[LOG] Klient się rozłączył.`);
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`[LOG] Serwer działa na porcie ${PORT}`));
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => console.log(`[LOG] Serwer gotowy na porcie ${PORT}`));
