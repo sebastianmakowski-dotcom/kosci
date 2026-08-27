@@ -104,7 +104,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script>
     // KLUCZOWA ZMIANA - WYMUSZAMY WEBSOCKETY ABY RENDER NIE ROZŁĄCZAŁ
-    const socket = io({ transports: ['websocket'], upgrade: false });
+    const socket = io("https://kosci-yhuf.onrender.com", { transports: ['websocket'], upgrade: false });
     
     let myId = null;
     let currentRoomId = null;
