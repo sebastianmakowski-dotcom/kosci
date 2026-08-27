@@ -101,10 +101,14 @@
     </div>
 </div>
 
+<!-- Ładujemy bibliotekę Socket.io w pełni dynamicznie -->
 <script src="/socket.io/socket.io.js"></script>
 <script>
-    // KLUCZOWA ZMIANA - WYMUSZAMY WEBSOCKETY ABY RENDER NIE ROZŁĄCZAŁ
-    const socket = io("https://kosci-yhuf.onrender.com", { transports: ['websocket'], upgrade: false });
+    // Puszczamy socket bez sztywnego adresu - przeglądarka sama dopasuje host Rendera
+    const socket = io({
+        transports: ['websocket', 'polling'],
+        upgrade: true
+    });
     
     let myId = null;
     let currentRoomId = null;
