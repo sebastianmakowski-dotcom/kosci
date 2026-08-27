@@ -3,63 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kości - Test</title>
+    <title>Kości Turniejowe</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #222; color: #fff; padding: 20px; text-align: center; }
-        .box { background: #333; padding: 20px; border-radius: 8px; max-width: 400px; margin: 20px auto; }
-        input, button { padding: 10px; font-size: 16px; margin: 5px; width: 80%; }
-        button { background: #28a745; color: white; border: none; cursor: pointer; }
-        #error-box { background: #dc3545; color: white; padding: 10px; margin: 10px auto; max-width: 400px; display: none; border-radius: 5px; }
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 10px; color: #333; }
+        .container { max-width: 950px; margin: 20px auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; }
+        .card { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        input[type="text"] { padding: 12px; width: 100%; max-width: 250px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px; }
+        button { padding: 12px 18px; font-size: 16px; border: none; border-radius: 5px; background-color: #007bff; color: white; cursor: pointer; margin: 5px; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        #game-section { display: none; }
+        .game-layout { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 15px; }
+        .dice-container { display: flex; justify-content: center; gap: 10px; margin: 15px 0; }
+        .die { width: 50px; height: 50px; border: 2px solid #333; border-radius: 8px; font-size: 26px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; background: white; }
+        .die.held { background: #f8d7da; border-color: #dc3545; }
+        
+        .table-box { width: 100%; overflow-x: auto; margin-top: 15px; border: 1px solid #dee2e6; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; text-align: center; }
+        th, td { border: 1px solid #dee2e6; padding: 10px; white-space: nowrap; }
+        th { background: #343a40; color: white; }
+        .score-cell { cursor: pointer; color: #007bff; font-weight: bold; background: #e9ecef; }
+        .score-cell:hover { background: #d4edda; }
+        .filled { background: #f1f1f1; color: #333; }
+        .active-col { background: #e8f4ea; font-weight: bold; }
+        #status { font-weight: bold; margin-bottom: 15px; font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <div id="status" style="font-size: 20px; font-weight: bold; color: red;">🔴 Stan: Rozłączony</div>
-    <div id="error-box"></div>
+<div class="container">
+    <div id="status" style="color: red;">🔴 Łączenie z serwerem...</div>
+    <h1>🎲 Kości Turniejowe</h1>
 
-    <div class="box">
-        <h2>Test Gry Kości</h2>
-        <input type="text" id="name" placeholder="Twoje imię"><br>
-        <button onclick="sendJoin()">Dołącz</button>
-        <div id="players" style="margin-top: 15px; font-weight: bold;"></div>
+    <div id="lobby-section" class="card">
+        <h3>Pokój: <span id="room-id-display"></span></h3>
+        <p id="share-p" style="word-break: break-all; display:none;">Link do zaproszenia: <strong id="link-url"></strong></p>
+        <div>
+            <input type="text" id="player-name" placeholder="Wpisz imię...">
+            <br>
+            <button id="join-btn" onclick="joinRoom()">Wejdź do gry</button>
+        </div>
+        <div id="waiting-area" style="display:none; margin-top: 15px;">
+            <h4>Osoby w grze:</h4>
+            <ul id="lobby-players-list" style="list-style:none; padding:0; font-weight:bold; font-size: 18px;"></ul>
+            <button id="btn-start" onclick="socket.emit('startGame')" style="background-color: #28a745; display:none;">Start Gry!</button>
+        </div>
     </div>
+
+    <div id="game-section">
+        <h2 id="turn-info">Tura: </h2>
+        <div class="card">
+            <p>Pozostało rzutów: <strong id="rolls-left">3</strong></p>
+            <div class="dice-container" id="dice-container"></div>
+            <button id="roll-btn" onclick="socket.emit('roll')">Rzuć Kośćmi</button>
+        </div>
+        <div class="table-box">
+            <table id="score-table">
+                <thead><tr id="table-header"></tr></thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-    window.onerror = function(msg, url, line) {
-        const eb = document.getElementById('error-box');
-        eb.style.display = 'block';
-        eb.innerHTML = `JS Błąd: ${msg} (Linia: ${line})`;
-    };
-
     const socket = io({ transports: ['websocket', 'polling'] });
+    let myId = null;
+    let currentRoomId = null;
+    let roomData = null;
 
     socket.on('connect', () => {
-        document.getElementById('status').textContent = '🟢 Stan: Połączony! ID: ' + socket.id;
-        document.getElementById('status').style.color = 'lime';
+        myId = socket.id;
+        const stat = document.getElementById('status');
+        stat.textContent = '🟢 Połączono z serwerem';
+        stat.style.color = '#28a745';
     });
 
     socket.on('disconnect', () => {
-        document.getElementById('status').textContent = '🔴 Stan: Rozłączony';
-        document.getElementById('status').style.color = 'red';
+        const stat = document.getElementById('status');
+        stat.textContent = '🔴 Rozłączono';
+        stat.style.color = '#dc3545';
     });
 
     const urlParams = new URLSearchParams(window.location.search);
-    let roomId = urlParams.get('room') || 'testroom';
+    currentRoomId = urlParams.get('room');
+    if (!currentRoomId) {
+        currentRoomId = Math.random().toString(36).substring(2, 8);
+        window.history.replaceState({}, '', '?room=' + currentRoomId);
+    }
+    document.getElementById('room-id-display').textContent = currentRoomId;
+    document.getElementById('link-url').textContent = window.location.href;
+    document.getElementById('share-p').style.display = 'block';
 
-    function sendJoin() {
-        const val = document.getElementById('name').value;
-        if(val) {
-            console.log("Wysyłam joinRoom dla:", val);
-            socket.emit('joinRoom', { roomId: roomId, playerName: val });
+    function joinRoom() {
+        const name = document.getElementById('player-name').value.trim();
+        if (name) {
+            socket.emit('joinRoom', { roomId: currentRoomId, playerName: name });
+            document.getElementById('player-name').disabled = true;
+            document.getElementById('join-btn').disabled = true;
+            document.getElementById('waiting-area').style.display = 'block';
         }
     }
 
+    const CATEGORIES = ['Jedynki', 'Dwójki', 'Trójki', 'Czwórki', 'Piątki', 'Szóstki', 'Para', 'Dwie Pary', 'Trójka', 'Full', 'Parzyste', 'Nieparzyste', 'Mały Strit', 'Duży Strit', 'Kareta', 'Generał', 'Szansa'];
+
     socket.on('updateRoom', (room) => {
-        console.log("Otrzymano updateRoom:", room);
-        const names = room.players.map(p => p.name).join(', ');
-        document.getElementById('players').textContent = "Gracze w pokoju: " + names;
+        if (!room) return;
+        roomData = room;
+        
+        // Lista graczy w lobby
+        document.getElementById('lobby-players-list').innerHTML = room.players.map(p => `<li>${p.name}</li>`).join('');
+        
+        if (room.players.length > 0 && !room.gameState.started) {
+            document.getElementById('btn-start').style.display = 'inline-block';
+        }
+
+        if (room.gameState && room.gameState.started) {
+            document.getElementById('lobby-section').style.display = 'none';
+            document.getElementById('game-section').style.display = 'block';
+            
+            const activePlayer = room.players[room.currentPlayerIndex];
+            const isMyTurn = (activePlayer && activePlayer.id === myId);
+            
+            document.getElementById('turn-info').textContent = isMyTurn ? "Twoja tura!" : `Tura gracza: ${activePlayer ? activePlayer.name : ''}`;
+            document.getElementById('rolls-left').textContent = room.gameState.rollsLeft;
+            
+            // Kostki
+            const diceHtml = room.gameState.dice.map((d, i) => {
+                const held = room.gameState.heldDice[i] ? 'held' : '';
+                return `<div class="die ${held}" onclick="if(${isMyTurn}) socket.emit('hold', ${i})">${d}</div>`;
+            }).join('');
+            document.getElementById('dice-container').innerHTML = diceHtml;
+
+            document.getElementById('roll-btn').disabled = (!isMyTurn || room.gameState.rollsLeft === 0);
+
+            // Tabela wyników
+            renderTable(room, isMyTurn);
+        }
     });
+
+    function renderTable(room, isMyTurn) {
+        const header = document.getElementById('table-header');
+        header.innerHTML = '<th>Układ</th>' + room.players.map((p, i) => `<th class="${i === room.currentPlayerIndex ? 'active-col' : ''}">${p.name}</th>`).join('');
+
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = CATEGORIES.map(cat => {
+            let row = `<tr><td><b>${cat}</b></td>`;
+            room.players.forEach((p, pIdx) => {
+                const score = p.scores[cat];
+                const isCurrentMe = (p.id === myId && pIdx === room.currentPlayerIndex);
+                if (score !== null) {
+                    row += `<td class="filled">${score}</td>`;
+                } else if (isCurrentMe && isMyTurn && room.gameState.rollsLeft < 3) {
+                    row += `<td class="score-cell" onclick="socket.emit('saveScore', '${cat}')">Wpisz</td>`;
+                } else {
+                    row += `<td>-</td>`;
+                }
+            });
+            return row + '</tr>';
+        }).join('');
+    }
 </script>
 </body>
 </html>
