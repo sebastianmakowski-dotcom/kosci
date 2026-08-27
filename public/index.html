@@ -211,8 +211,9 @@
         document.getElementById('turn-info').textContent = isMyTurnGlobal ? t().turnYour : (t().turnGame + nameText);
     }
 
-    socket.on('updateRoom', function(room) {
-        if (!room || room.id !== currentRoomId) return;
+       socket.on('updateRoom', function(room) {
+        console.log("Odebrano updateRoom od serwera:", room);
+        if (!room) return;
         
         roomData = room;
         isMyTurnGlobal = false;
