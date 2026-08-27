@@ -5,7 +5,6 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
-// Wymuszenie pełnego wsparcia dla WebSocketów i CORS na Renderze
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -74,15 +73,16 @@ io.on('connection', (socket) => {
             player.currentRoom = roomId;
         }
 
-        io.to(roomId).emit('updateRoom', room);
-        console.log(`[LOG] Sukces w pokoju ${roomId}. Liczba osób: ${room.players.length}`);
+        // WYŚLIJ GLOBALNIE DO WSZYSTKICH (Przeglądarka zignoruje, jeśli to nie jej pokój)
+        io.emit('updateRoom', room);
+        console.log(`[LOG] Wysłano globalny update dla pokoju ${roomId}. Liczba osób: ${room.players.length}`);
     });
 
     socket.on('startGame', () => {
         const playerRoom = Object.values(rooms).find(r => r.players.some(p => p.id === socket.id));
         if (playerRoom) {
             playerRoom.gameState.started = true;
-            io.to(playerRoom.id).emit('updateRoom', playerRoom);
+            io.emit('updateRoom', playerRoom);
         }
     });
 
@@ -97,7 +97,7 @@ io.on('connection', (socket) => {
             }
             playerRoom.gameState.lastRollWasFull = (rolledCount === 5);
             playerRoom.gameState.rollsLeft--;
-            io.to(playerRoom.id).emit('updateRoom', playerRoom);
+            io.emit('updateRoom', playerRoom);
         }
     });
 
@@ -107,7 +107,7 @@ io.on('connection', (socket) => {
         const activePlayer = playerRoom.players[playerRoom.currentPlayerIndex];
         if (activePlayer?.id === socket.id && playerRoom.gameState.rollsLeft < 3) {
             playerRoom.gameState.heldDice[index] = !playerRoom.gameState.heldDice[index];
-            io.to(playerRoom.id).emit('updateRoom', playerRoom);
+            io.emit('updateRoom', playerRoom);
         }
     });
 
@@ -122,7 +122,7 @@ io.on('connection', (socket) => {
             playerRoom.gameState.rollsLeft = 3;
             playerRoom.gameState.lastRollWasFull = false;
             playerRoom.currentPlayerIndex = (playerRoom.currentPlayerIndex + 1) % playerRoom.players.length;
-            io.to(playerRoom.id).emit('updateRoom', playerRoom);
+            io.emit('updateRoom', playerRoom);
         }
     });
 
@@ -133,7 +133,7 @@ io.on('connection', (socket) => {
             if (room.players.length === 0) delete rooms[roomId];
             else {
                 if (room.currentPlayerIndex >= room.players.length) room.currentPlayerIndex = 0;
-                io.to(roomId).emit('updateRoom', room);
+                io.emit('updateRoom', room);
             }
         });
         console.log(`[LOG] Klient się rozłączył.`);
