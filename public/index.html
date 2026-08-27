@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kości Turniejowe - Ekipa</title>
+    <title>Kości</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 10px; color: #333; position: relative; }
@@ -62,7 +62,7 @@
 <button type="button" id="lang-btn" onclick="toggleLanguage()">English version</button>
 
 <div class="container">
-    <h1 id="txt-title" style="font-size: 22px;">🎲 Kości (Bez podpowiedzi)</h1>
+    <h1 id="txt-title" style="font-size: 22px;">🎲 Kości</h1>
 
     <div id="lobby-section" class="card">
         <h3 id="room-title">Pokój: Trwa generowanie...</h3>
@@ -90,7 +90,6 @@
                 <p><span id="txt-rolls-left">Pozostało rzutów:</span> <strong id="rolls-left">3</strong></p>
                 <div class="dice-container" id="dice-container"></div>
                 <button type="button" class="action-btn" id="roll-btn" onclick="socket.emit('roll')">Rzuć Kośćmi</button>
-                <p><small id="txt-info" style="display:block; margin-top:10px;">Z ręki (5 kości na raz) aktywuje mnożnik x2 dla Środka i Dołu tabeli!</small></p>
             </div>
             <div class="table-box">
                 <table id="score-table">
@@ -114,7 +113,7 @@
 
     const dict = {
         pl: {
-            langBtn: "English version", title: "🎲 Kości (Bez podpowiedzi)", roomPrefix: "Pokój: ", share: "Wspólny link:", copy: "Skopiuj Link",
+            langBtn: "English version", title: "🎲 Kości", roomPrefix: "Pokój: ", share: "Wspólny link:", copy: "Skopiuj Link",
             namePlace: "Wpisz imię...", join: "Wejdź do gry", players: "Osoby w grze:", start: "Start!", rollsLeft: "Pozostało rzutów:",
             rollBtn: "Rzuć Kośćmi", info: "Z ręki (5 kości na raz) aktywuje mnożnik x2 dla Środka i Dołu tabeli!", turnYour: "Twoja tura!",
             turnGame: "Gra: ", tableCat: "Układ", write: "Wpisz", sum: "SUMA", alertCopy: "Skopiowano! Wyślij link znajomym.",
@@ -122,7 +121,7 @@
             cats: { 'Jedynki': 'Jedynki', 'Dwójki': 'Dwójki', 'Trójki': 'Trójki', 'Czwórki': 'Czwórki', 'Piątki': 'Piątki', 'Szóstki': 'Szóstki', 'Para': 'Para', 'Dwie Pary': 'Dwie Pary', 'Trójka': 'Trójka', 'Full': 'Full', 'Parzyste': 'Parzyste', 'Nieparzyste': 'Nieparzyste', 'Mały Strit': 'Mały Strit', 'Duży Strit': 'Duży Strit', 'Kareta': 'Kareta', 'Generał': 'Generał', 'Szansa': 'Szansa' }
         },
         en: {
-            langBtn: "Wersja polska", title: "🎲 Dice (No hints)", roomPrefix: "Room: ", share: "Share link:", copy: "Copy Link",
+            langBtn: "Wersja polska", title: "🎲 Dice", roomPrefix: "Room: ", share: "Share link:", copy: "Copy Link",
             namePlace: "Enter your name...", join: "Join game", players: "Players in game:", start: "Start!", rollsLeft: "Rolls left:",
             rollBtn: "Roll Dice", info: "Rolling all 5 dice at once activates a x2 multiplier for Middle and Bottom!", turnYour: "Your turn!",
             turnGame: "Playing: ", tableCat: "Category", write: "Enter", sum: "TOTAL", alertCopy: "Copied! Send the link to your friends.",
