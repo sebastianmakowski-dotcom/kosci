@@ -28,6 +28,8 @@
         .score-cell:hover { background: #d4edda; }
         .filled { background: #f1f1f1; color: #333; }
         .active-col { background: #e8f4ea; font-weight: bold; }
+        .bonus-row { background: #fff3cd; color: #856404; font-size: 0.9em; }
+        .total-row { font-weight: bold; background: #28a745; color: white; font-size: 16px; }
         #status { font-weight: bold; margin-bottom: 15px; font-size: 14px; }
     </style>
 </head>
@@ -108,13 +110,41 @@
         }
     }
 
-    const CATEGORIES = ['Jedynki', 'Dwójki', 'Trójki', 'Czwórki', 'Piątki', 'Szóstki', 'Para', 'Dwie Pary', 'Trójka', 'Full', 'Parzyste', 'Nieparzyste', 'Mały Strit', 'Duży Strit', 'Kareta', 'Generał', 'Szansa'];
+    const SCHOOL = ['Jedynki', 'Dwójki', 'Trójki', 'Czwórki', 'Piątki', 'Szóstki'];
+    const MIDDLE = ['Para', 'Dwie Pary', 'Trójka', 'Full'];
+    const BOTTOM = ['Parzyste', 'Nieparzyste', 'Mały Strit', 'Duży Strit', 'Kareta', 'Generał'];
+
+    function getSchoolBonus(scores) {
+        let hasNull = false, sum = 0;
+        for (let i = 0; i < SCHOOL.length; i++) {
+            if (scores[SCHOOL[i]] === null) hasNull = true;
+            else sum += scores[SCHOOL[i]];
+        }
+        return hasNull ? '-' : (sum >= 0 ? 50 : 0);
+    }
+
+    function getMiddleBonus(scores) {
+        let allFilled = true, allPositive = true;
+        for (let i = 0; i < MIDDLE.length; i++) {
+            if (scores[MIDDLE[i]] === null) allFilled = false;
+            if (scores[MIDDLE[i]] <= 0) allPositive = false;
+        }
+        return !allFilled ? '-' : (allPositive ? 50 : 0);
+    }
+
+    function getBottomBonus(scores) {
+        let allFilled = true, allPositive = true;
+        for (let i = 0; i < BOTTOM.length; i++) {
+            if (scores[BOTTOM[i]] === null) allFilled = false;
+            if (scores[BOTTOM[i]] <= 0) allPositive = false;
+        }
+        return !allFilled ? '-' : (allPositive ? 100 : 0);
+    }
 
     socket.on('updateRoom', (room) => {
         if (!room) return;
         roomData = room;
         
-        // Lista graczy w lobby
         document.getElementById('lobby-players-list').innerHTML = room.players.map(p => `<li>${p.name}</li>`).join('');
         
         if (room.players.length > 0 && !room.gameState.started) {
@@ -131,7 +161,6 @@
             document.getElementById('turn-info').textContent = isMyTurn ? "Twoja tura!" : `Tura gracza: ${activePlayer ? activePlayer.name : ''}`;
             document.getElementById('rolls-left').textContent = room.gameState.rollsLeft;
             
-            // Kostki
             const diceHtml = room.gameState.dice.map((d, i) => {
                 const held = room.gameState.heldDice[i] ? 'held' : '';
                 return `<div class="die ${held}" onclick="if(${isMyTurn}) socket.emit('hold', ${i})">${d}</div>`;
@@ -140,7 +169,6 @@
 
             document.getElementById('roll-btn').disabled = (!isMyTurn || room.gameState.rollsLeft === 0);
 
-            // Tabela wyników
             renderTable(room, isMyTurn);
         }
     });
@@ -150,13 +178,15 @@
         header.innerHTML = '<th>Układ</th>' + room.players.map((p, i) => `<th class="${i === room.currentPlayerIndex ? 'active-col' : ''}">${p.name}</th>`).join('');
 
         const tbody = document.getElementById('table-body');
-        tbody.innerHTML = CATEGORIES.map(cat => {
+        tbody.innerHTML = '';
+
+        function renderRow(cat) {
             let row = `<tr><td><b>${cat}</b></td>`;
             room.players.forEach((p, pIdx) => {
                 const score = p.scores[cat];
                 const isCurrentMe = (p.id === myId && pIdx === room.currentPlayerIndex);
                 if (score !== null) {
-                    row += `<td class="filled">${score}</td>`;
+                    row += `<td class="filled ${score <= 0 ? 'crossed' : ''}">${score}</td>`;
                 } else if (isCurrentMe && isMyTurn && room.gameState.rollsLeft < 3) {
                     row += `<td class="score-cell" onclick="socket.emit('saveScore', '${cat}')">Wpisz</td>`;
                 } else {
@@ -164,7 +194,48 @@
                 }
             });
             return row + '</tr>';
-        }).join('');
+        }
+
+        function renderBonusRow(label, bonusFunc) {
+            let row = `<tr class="bonus-row"><td><i>${label}</i></td>`;
+            room.players.forEach(p => {
+                const b = bonusFunc(p.scores);
+                row += `<td>${b === '-' ? '-' : '+' + b}</td>`;
+            });
+            return row + '</tr>';
+        }
+
+        // 1. Szkoła
+        SCHOOL.forEach(cat => tbody.innerHTML += renderRow(cat));
+        tbody.innerHTML += renderBonusRow("Bonus Szkoła (+50)", getSchoolBonus);
+
+        // 2. Środek
+        MIDDLE.forEach(cat => tbody.innerHTML += renderRow(cat));
+        tbody.innerHTML += renderBonusRow("Bonus Środek (+50)", getMiddleBonus);
+
+        // 3. Dół
+        BOTTOM.forEach(cat => tbody.innerHTML += renderRow(cat));
+        tbody.innerHTML += renderBonusRow("Bonus Dół (+100)", getBottomBonus);
+
+        // 4. Szansa
+        tbody.innerHTML += renderRow('Szansa');
+
+        // 5. Podsumowanie (SUMA)
+        let totalRow = `<tr class="total-row"><td>SUMA</td>`;
+        room.players.forEach(p => {
+            let total = 0;
+            Object.values(p.scores).forEach(s => { if (s !== null) total += s; });
+            
+            const b1 = getSchoolBonus(p.scores);
+            const b2 = getMiddleBonus(p.scores);
+            const b3 = getBottomBonus(p.scores);
+            if (b1 !== '-') total += b1;
+            if (b2 !== '-') total += b2;
+            if (b3 !== '-') total += b3;
+
+            totalRow += `<td>${total}</td>`;
+        });
+        tbody.innerHTML += totalRow + '</tr>';
     }
 </script>
 </body>
