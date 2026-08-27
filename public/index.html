@@ -3,130 +3,329 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kości - Diagnostyka</title>
+    <title>Kości Turniejowe - Ekipa</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 10px; color: #333; position: relative; }
+        
+        #status-dot { position: absolute; top: 10px; left: 10px; font-size: 14px; font-weight: bold; color: #dc3545; z-index: 100; }
+        #lang-btn { position: absolute; top: 10px; right: 10px; background: none; border: 1px solid #007bff; color: #007bff; font-size: 12px; padding: 5px 10px; border-radius: 15px; cursor: pointer; transition: 0.2s; z-index: 100; }
+        #lang-btn:hover { background: #007bff; color: white; }
+
         .container { max-width: 950px; margin: 40px auto 0; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; }
         .card { background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        
         input[type="text"] { padding: 12px; width: 100%; max-width: 250px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px; }
-        button { padding: 12px 18px; font-size: 16px; border: none; border-radius: 5px; background-color: #007bff; color: white; cursor: pointer; margin: 5px; }
+        button.action-btn { padding: 12px 18px; font-size: 16px; border: none; border-radius: 5px; background-color: #007bff; color: white; cursor: pointer; margin: 5px; }
+        button.action-btn:hover { background-color: #0056b3; }
+        button.action-btn:disabled { background-color: #cccccc; cursor: not-allowed; }
+        
         #game-section { display: none; }
-        .table-box { overflow-x: auto; margin-top: 20px; }
-        table { width: 100%; border-collapse: collapse; text-align: center; }
-        th, td { border: 1px solid #dee2e6; padding: 8px; }
-        #debug-log { background: #111; color: #0f0; padding: 15px; margin-top: 30px; border-radius: 5px; text-align: left; font-family: monospace; font-size: 13px; max-height: 200px; overflow-y: auto; }
+        .game-layout { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 15px; }
+        
+        .dice-box { flex: 1; min-width: 100%; max-width: 400px; }
+        .dice-container { display: flex; justify-content: center; gap: 10px; margin: 20px 0; }
+        .die { width: 50px; height: 50px; border: 2px solid #333; border-radius: 8px; font-size: 26px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; background: white; transition: 0.1s; }
+        .die.held { background: #f8d7da; border-color: #dc3545; transform: translateY(4px); }
+        
+        .table-box { flex: 1; min-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #dee2e6; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; text-align: center; }
+        th, td { border: 1px solid #dee2e6; padding: 12px 8px; white-space: nowrap; }
+        th { background: #343a40; color: white; }
+        
+        th:first-child, td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+        th:first-child { background: #343a40; z-index: 2; }
+        .bonus-row td:first-child { background: #fff3cd; }
+        .total-row td:first-child { background: #28a745; color: white; }
+
+        .active-col { background: #e8f4ea; font-weight: bold; border-left: 2px solid #28a745; border-right: 2px solid #28a745; }
+        .score-cell { cursor: pointer; color: #007bff; font-weight: bold; background: #e9ecef; transition: background 0.2s; }
+        .score-cell:hover { background: #d4edda; }
+        .filled { cursor: default; background: #f1f1f1; color: #333; }
+        .crossed { color: #dc3545; font-weight: bold; }
+        .bonus-row { background: #fff3cd; color: #856404; font-size: 0.9em; }
+        .total-row { font-weight: bold; background: #28a745; color: white; font-size: 16px; }
+
+        @media (max-width: 600px) {
+            body { padding: 5px; }
+            .container { padding: 10px; border-radius: 8px; margin-top: 35px; }
+            #roll-btn { width: 100%; font-size: 18px; padding: 15px; }
+            .die { width: 45px; height: 45px; font-size: 22px; }
+            input[type="text"] { max-width: 100%; }
+            #share-link-p button { width: 100%; margin-top: 10px; }
+        }
     </style>
 </head>
 <body>
 
+<div id="status-dot">🔴 Brak połączenia</div>
+<button type="button" id="lang-btn" onclick="toggleLanguage()">English version</button>
+
 <div class="container">
-    <h1>🎲 Kości (Tryb Diagnostyczny)</h1>
+    <h1 id="txt-title" style="font-size: 22px;">🎲 Kości (Bez podpowiedzi)</h1>
 
     <div id="lobby-section" class="card">
-        <h3>Pokój: <span id="room-id-display"></span></h3>
+        <h3 id="room-title">Pokój: Trwa generowanie...</h3>
+        <p id="share-link-p" style="display:none; word-break: break-all;">
+            <span id="txt-share">Wspólny link:</span><br>
+            <strong id="link-url"></strong><br>
+            <button type="button" class="action-btn" id="btn-copy" onclick="copyLink()" style="background-color: #17a2b8;">Skopiuj Link</button>
+        </p>
+        <hr>
         <div>
             <input type="text" id="player-name" placeholder="Wpisz imię...">
-            <button id="join-btn" onclick="joinRoom()">Wejdź do gry</button>
+            <button type="button" class="action-btn" id="join-btn" onclick="joinRoom(event)" style="width:100%; max-width:250px;">Wejdź do gry</button>
         </div>
         <div id="waiting-area" style="display:none; margin-top: 15px;">
-            <h4>Osoby w grze:</h4>
-            <ul id="lobby-players-list"></ul>
-            <button id="btn-start" onclick="socket.emit('startGame')" style="background-color: #28a745; display:none;">Start!</button>
+            <h4 id="txt-players">Osoby w grze:</h4>
+            <ul id="lobby-players-list" style="list-style:none; padding:0; font-weight:bold; font-size: 18px;"></ul>
+            <button type="button" class="action-btn" id="btn-start" onclick="socket.emit('startGame')" style="background-color: #28a745; width:100%; max-width:250px; font-size: 18px; display:none;">Start!</button>
         </div>
     </div>
 
     <div id="game-section">
-        <h2 id="turn-info">Tura: </h2>
-        <div class="card">
-            <p>Pozostało rzutów: <strong id="rolls-left">3</strong></p>
-            <div id="dice-container" style="font-size: 24px; margin: 10px 0; font-weight:bold;"></div>
-            <button id="roll-btn" onclick="socket.emit('roll')">Rzuć</button>
-        </div>
-        <div class="table-box">
-            <table id="score-table">
-                <thead><tr id="table-header"></tr></thead>
-                <tbody id="table-body"></tbody>
-            </table>
+        <h2 id="turn-info" style="font-size: 20px;">Tura: </h2>
+        <div class="game-layout">
+            <div class="dice-box card">
+                <p><span id="txt-rolls-left">Pozostało rzutów:</span> <strong id="rolls-left">3</strong></p>
+                <div class="dice-container" id="dice-container"></div>
+                <button type="button" class="action-btn" id="roll-btn" onclick="socket.emit('roll')">Rzuć Kośćmi</button>
+                <p><small id="txt-info" style="display:block; margin-top:10px;">Z ręki (5 kości na raz) aktywuje mnożnik x2 dla Środka i Dołu tabeli!</small></p>
+            </div>
+            <div class="table-box">
+                <table id="score-table">
+                    <thead><tr id="table-header"></tr></thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
         </div>
     </div>
-
-    <!-- CZARNA KONSOLA DIAGNOSTYCZNA -->
-    <div id="debug-log">Logi systemowe:<br></div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-    function logDebug(msg) {
-        const logBox = document.getElementById('debug-log');
-        const time = new Date().toLocaleTimeString();
-        logBox.innerHTML += `[${time}] ${msg}<br>`;
-        logBox.scrollTop = logBox.scrollHeight;
-    }
-
-    logDebug("Inicjalizacja skryptu...");
-    const socket = io();
+    // KLUCZOWA ZMIANA - WYMUSZAMY WEBSOCKETY ABY RENDER NIE ROZŁĄCZAŁ
+    const socket = io({ transports: ['websocket'], upgrade: false });
+    
     let myId = null;
     let currentRoomId = null;
+    let roomData = null;
+    let isMyTurnGlobal = false;
 
-    socket.on('connect', () => { 
+    const dict = {
+        pl: {
+            langBtn: "English version", title: "🎲 Kości (Bez podpowiedzi)", roomPrefix: "Pokój: ", share: "Wspólny link:", copy: "Skopiuj Link",
+            namePlace: "Wpisz imię...", join: "Wejdź do gry", players: "Osoby w grze:", start: "Start!", rollsLeft: "Pozostało rzutów:",
+            rollBtn: "Rzuć Kośćmi", info: "Z ręki (5 kości na raz) aktywuje mnożnik x2 dla Środka i Dołu tabeli!", turnYour: "Twoja tura!",
+            turnGame: "Gra: ", tableCat: "Układ", write: "Wpisz", sum: "SUMA", alertCopy: "Skopiowano! Wyślij link znajomym.",
+            bSchool: "Bonus Szkoła (+50)", bMiddle: "Bonus Środek (+50)", bBottom: "Bonus Dół (+100)",
+            cats: { 'Jedynki': 'Jedynki', 'Dwójki': 'Dwójki', 'Trójki': 'Trójki', 'Czwórki': 'Czwórki', 'Piątki': 'Piątki', 'Szóstki': 'Szóstki', 'Para': 'Para', 'Dwie Pary': 'Dwie Pary', 'Trójka': 'Trójka', 'Full': 'Full', 'Parzyste': 'Parzyste', 'Nieparzyste': 'Nieparzyste', 'Mały Strit': 'Mały Strit', 'Duży Strit': 'Duży Strit', 'Kareta': 'Kareta', 'Generał': 'Generał', 'Szansa': 'Szansa' }
+        },
+        en: {
+            langBtn: "Wersja polska", title: "🎲 Dice (No hints)", roomPrefix: "Room: ", share: "Share link:", copy: "Copy Link",
+            namePlace: "Enter your name...", join: "Join game", players: "Players in game:", start: "Start!", rollsLeft: "Rolls left:",
+            rollBtn: "Roll Dice", info: "Rolling all 5 dice at once activates a x2 multiplier for Middle and Bottom!", turnYour: "Your turn!",
+            turnGame: "Playing: ", tableCat: "Category", write: "Enter", sum: "TOTAL", alertCopy: "Copied! Send the link to your friends.",
+            bSchool: "School Bonus (+50)", bMiddle: "Middle Bonus (+50)", bBottom: "Bottom Bonus (+100)",
+            cats: { 'Jedynki': 'Ones', 'Dwójki': 'Twos', 'Trójki': 'Threes', 'Czwórki': 'Fours', 'Piątki': 'Fives', 'Szóstki': 'Sixes', 'Para': 'Pair', 'Dwie Pary': 'Two Pairs', 'Trójka': 'Three of a Kind', 'Full': 'Full House', 'Parzyste': 'Evens', 'Nieparzyste': 'Odds', 'Mały Strit': 'Small Straight', 'Duży Strit': 'Large Straight', 'Kareta': 'Four of a Kind', 'Generał': 'Yatzy', 'Szansa': 'Chance' }
+        }
+    };
+
+    let lang = 'pl';
+    function t() { return dict[lang]; }
+
+    socket.on('connect', function() { 
         myId = socket.id; 
-        logDebug(`✅ Połączono z serwerem. Moje ID: ${myId}`);
+        const statusDot = document.getElementById('status-dot');
+        statusDot.textContent = '🟢 Połączono z serwerem';
+        statusDot.style.color = '#28a745';
     });
 
-    socket.on('disconnect', () => logDebug("❌ Rozłączono z serwerem."));
+    socket.on('disconnect', function() {
+        const statusDot = document.getElementById('status-dot');
+        statusDot.textContent = '🔴 Brak połączenia';
+        statusDot.style.color = '#dc3545';
+    });
 
-    const urlParams = new URLSearchParams(window.location.search);
-    currentRoomId = urlParams.get('room');
-    if (!currentRoomId) {
-        currentRoomId = Math.random().toString(36).substring(2, 8);
-        window.history.replaceState({}, '', '?room=' + currentRoomId);
-        logDebug(`Wygenerowano nowy kod pokoju: ${currentRoomId}`);
-    } else {
-        logDebug(`Odczytano pokój z URL: ${currentRoomId}`);
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        currentRoomId = urlParams.get('room');
+        if (!currentRoomId) {
+            currentRoomId = Math.random().toString(36).substring(2, 8);
+            window.history.replaceState({}, '', '?room=' + currentRoomId);
+        }
+    } catch(e) { currentRoomId = "POKOJ_1"; }
+
+    document.getElementById('link-url').textContent = window.location.href;
+    document.getElementById('share-link-p').style.display = 'block';
+
+    function updateUI() {
+        document.getElementById('lang-btn').textContent = t().langBtn;
+        document.getElementById('txt-title').textContent = t().title;
+        document.getElementById('room-title').textContent = t().roomPrefix + currentRoomId;
+        document.getElementById('txt-share').textContent = t().share;
+        document.getElementById('btn-copy').textContent = t().copy;
+        document.getElementById('player-name').placeholder = t().namePlace;
+        document.getElementById('join-btn').textContent = t().join;
+        document.getElementById('txt-players').textContent = t().players;
+        document.getElementById('btn-start').textContent = t().start;
+        document.getElementById('txt-rolls-left').textContent = t().rollsLeft;
+        document.getElementById('roll-btn').textContent = t().rollBtn;
+        document.getElementById('txt-info').textContent = t().info;
     }
-    document.getElementById('room-id-display').textContent = currentRoomId;
+    updateUI();
 
-    function joinRoom() {
-        const name = document.getElementById('player-name').value.trim();
-        if (name) {
-            logDebug(`Wysyłam prośbę o dołączenie. Imię: ${name}, Pokój: ${currentRoomId}`);
+    function toggleLanguage() {
+        lang = lang === 'pl' ? 'en' : 'pl';
+        updateUI();
+        if (roomData && roomData.gameState && roomData.gameState.started) { 
+            renderTable(roomData, isMyTurnGlobal); 
+            updateTurnText(); 
+        }
+    }
+
+    function copyLink() {
+        navigator.clipboard.writeText(window.location.href);
+        alert(t().alertCopy);
+    }
+
+    function joinRoom(e) {
+        if(e) e.preventDefault(); // Blokuje ewentualne przeładowanie strony
+        const nameInput = document.getElementById('player-name');
+        const name = nameInput.value.trim();
+        if (name !== "") {
             socket.emit('joinRoom', { roomId: currentRoomId, playerName: name });
-            document.getElementById('player-name').disabled = true;
+            nameInput.disabled = true;
             document.getElementById('join-btn').disabled = true;
             document.getElementById('waiting-area').style.display = 'block';
         }
     }
 
-    socket.on('updateRoom', (room) => {
-        logDebug(`Odebrano updateRoom! Pokój z serwera: ${room?.id || 'Brak ID'}, Liczba graczy: ${room?.players?.length || 0}`);
+    function updateTurnText() {
+        if (!roomData || !roomData.players) return;
+        const activePlayer = roomData.players[roomData.currentPlayerIndex];
+        let nameText = (activePlayer && activePlayer.name) ? activePlayer.name : "";
+        document.getElementById('turn-info').textContent = isMyTurnGlobal ? t().turnYour : (t().turnGame + nameText);
+    }
+
+    socket.on('updateRoom', function(room) {
+        if (!room || room.id !== currentRoomId) return;
         
-        if (!room) {
-            logDebug("⚠️ BŁĄD: Otrzymano pusty obiekt pokoju.");
-            return;
+        roomData = room;
+        isMyTurnGlobal = false;
+        
+        if (room.players && room.players.length > 0 && room.players[room.currentPlayerIndex]) {
+            if (room.players[room.currentPlayerIndex].id === myId) {
+                isMyTurnGlobal = true;
+            }
         }
 
-        if (room.id !== currentRoomId) {
-            logDebug(`⚠️ Zignorowano update (Pokój się nie zgadza. Oczekiwano: ${currentRoomId}, Otrzymano: ${room.id})`);
-            return;
+        let listHtml = '';
+        for (let i = 0; i < room.players.length; i++) {
+            listHtml += '<li>' + room.players[i].name + '</li>';
         }
-
-        // Aktualizacja listy
-        logDebug("Generowanie listy graczy w UI...");
-        document.getElementById('lobby-players-list').innerHTML = room.players.map(p => `<li>${p.name}</li>`).join('');
+        document.getElementById('lobby-players-list').innerHTML = listHtml;
         
         if (room.players.length > 0 && !room.gameState.started) {
             document.getElementById('btn-start').style.display = 'inline-block';
         }
 
         if (room.gameState && room.gameState.started) {
-            logDebug("Gra wystartowała. Renderowanie stołu...");
             document.getElementById('lobby-section').style.display = 'none';
             document.getElementById('game-section').style.display = 'block';
+            updateTurnText();
             document.getElementById('rolls-left').textContent = room.gameState.rollsLeft;
-            document.getElementById('dice-container').textContent = room.gameState.dice.join(' | ');
+            
+            const diceContainer = document.getElementById('dice-container');
+            let diceHtml = '';
+            for (let i = 0; i < room.gameState.dice.length; i++) {
+                let dVal = room.gameState.dice[i];
+                let isHeld = room.gameState.heldDice[i] ? 'held' : '';
+                diceHtml += '<div class="die ' + isHeld + '" onclick="if(' + isMyTurnGlobal + ') socket.emit(\'hold\', ' + i + ')">' + dVal + '</div>';
+            }
+            diceContainer.innerHTML = diceHtml;
+
+            document.getElementById('roll-btn').disabled = (!isMyTurnGlobal || room.gameState.rollsLeft === 0);
+            renderTable(room, isMyTurnGlobal);
         }
     });
+
+    const SCHOOL = ['Jedynki', 'Dwójki', 'Trójki', 'Czwórki', 'Piątki', 'Szóstki'];
+    const MIDDLE = ['Para', 'Dwie Pary', 'Trójka', 'Full'];
+    const BOTTOM = ['Parzyste', 'Nieparzyste', 'Mały Strit', 'Duży Strit', 'Kareta', 'Generał'];
+
+    function getSchoolBonus(scores) {
+        let hasNull = false, sum = 0;
+        for (let i=0; i<SCHOOL.length; i++) { if (scores[SCHOOL[i]] === null) hasNull = true; else sum += scores[SCHOOL[i]]; }
+        return hasNull ? '-' : (sum >= 0 ? 50 : 0);
+    }
+    function getMiddleBonus(scores) {
+        let allFilled = true, allPositive = true;
+        for (let i=0; i<MIDDLE.length; i++) { if (scores[MIDDLE[i]] === null) allFilled = false; if (scores[MIDDLE[i]] <= 0) allPositive = false; }
+        return !allFilled ? '-' : (allPositive ? 50 : 0);
+    }
+    function getBottomBonus(scores) {
+        let allFilled = true, allPositive = true;
+        for (let i=0; i<BOTTOM.length; i++) { if (scores[BOTTOM[i]] === null) allFilled = false; if (scores[BOTTOM[i]] <= 0) allPositive = false; }
+        return !allFilled ? '-' : (allPositive ? 100 : 0);
+    }
+
+    function renderTable(room, isMyTurn) {
+        const tbody = document.getElementById('table-body');
+        let headerHtml = '<th>' + t().tableCat + '</th>';
+        for (let i=0; i<room.players.length; i++) {
+            let activeClass = (i === room.currentPlayerIndex) ? 'active-col' : '';
+            headerHtml += '<th class="' + activeClass + '">' + room.players[i].name + '</th>';
+        }
+        document.getElementById('table-header').innerHTML = headerHtml;
+        tbody.innerHTML = '';
+
+        function renderRow(cat) {
+            let html = '<tr><td><b>' + t().cats[cat] + '</b></td>';
+            for (let pIndex=0; pIndex<room.players.length; pIndex++) {
+                let player = room.players[pIndex];
+                let isCurrent = (player.id === myId && pIndex === room.currentPlayerIndex);
+                let score = player.scores[cat];
+                if (score !== null) {
+                    html += '<td class="filled ' + (score <= 0 ? 'crossed' : '') + '">' + score + '</td>';
+                } else if (isCurrent && isMyTurn && room.gameState.rollsLeft < 3) {
+                    html += '<td class="score-cell" onclick="socket.emit(\'saveScore\', \'' + cat + '\')">' + t().write + '</td>';
+                } else { html += '<td>-</td>'; }
+            }
+            return html + '</tr>';
+        }
+
+        function renderBonus(label, func) {
+            let html = '<tr class="bonus-row"><td><i>' + label + '</i></td>';
+            for (let i=0; i<room.players.length; i++) {
+                let b = func(room.players[i].scores);
+                html += '<td>' + (b === '-' ? '-' : '+' + b) + '</td>';
+            }
+            return html + '</tr>';
+        }
+
+        for (let i=0; i<SCHOOL.length; i++) tbody.innerHTML += renderRow(SCHOOL[i]);
+        tbody.innerHTML += renderBonus(t().bSchool, getSchoolBonus);
+        
+        for (let i=0; i<MIDDLE.length; i++) tbody.innerHTML += renderRow(MIDDLE[i]);
+        tbody.innerHTML += renderBonus(t().bMiddle, getMiddleBonus);
+        
+        for (let i=0; i<BOTTOM.length; i++) tbody.innerHTML += renderRow(BOTTOM[i]);
+        tbody.innerHTML += renderBonus(t().bBottom, getBottomBonus);
+        
+        tbody.innerHTML += renderRow('Szansa');
+
+        let totalRowHtml = '<tr class="total-row"><td>' + t().sum + '</td>';
+        for (let i=0; i<room.players.length; i++) {
+            let p = room.players[i];
+            let total = 0, keys = Object.keys(p.scores);
+            for(let k=0; k<keys.length; k++) { if (p.scores[keys[k]] !== null) total += p.scores[keys[k]]; }
+            let b1 = getSchoolBonus(p.scores), b2 = getMiddleBonus(p.scores), b3 = getBottomBonus(p.scores);
+            if (b1 !== '-') total += b1; if (b2 !== '-') total += b2; if (b3 !== '-') total += b3;
+            totalRowHtml += '<td>' + total + '</td>';
+        }
+        tbody.innerHTML += totalRowHtml + '</tr>';
+    }
 </script>
 </body>
 </html>
