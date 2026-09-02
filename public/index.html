@@ -31,6 +31,7 @@
         .bonus-row { background: #fff3cd; color: #856404; font-size: 0.9em; }
         .total-row { font-weight: bold; background: #28a745; color: white; font-size: 16px; }
         #status { font-weight: bold; margin-bottom: 15px; font-size: 14px; }
+        #game-over-box { display: none; background: #d4edda; border: 2px solid #28a745; padding: 20px; border-radius: 8px; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -61,6 +62,14 @@
             <div class="dice-container" id="dice-container"></div>
             <button id="roll-btn" onclick="socket.emit('roll')">Rzuć Kośćmi</button>
         </div>
+
+        <!-- PANEL KOŃCA GRY -->
+        <div id="game-over-box">
+            <h2>🎉 Koniec gry!</h2>
+            <p>Wszystkie pola zostały wypełnione. Kto wygrał?</p>
+            <button onclick="socket.emit('restartGame')" style="background-color: #28a745; font-size: 18px;">🔄 Zagraj ponownie</button>
+        </div>
+
         <div class="table-box">
             <table id="score-table">
                 <thead><tr id="table-header"></tr></thead>
@@ -141,6 +150,14 @@
         return !allFilled ? '-' : (allPositive ? 100 : 0);
     }
 
+    // Sprawdza czy każdy gracz ma wypełnione wszystkie pola
+    function isGameOver(room) {
+        if (!room.gameState.started) return false;
+        return room.players.every(p => {
+            return Object.values(p.scores).every(score => score !== null);
+        });
+    }
+
     socket.on('updateRoom', (room) => {
         if (!room) return;
         roomData = room;
@@ -155,21 +172,31 @@
             document.getElementById('lobby-section').style.display = 'none';
             document.getElementById('game-section').style.display = 'block';
             
-            const activePlayer = room.players[room.currentPlayerIndex];
-            const isMyTurn = (activePlayer && activePlayer.id === myId);
+            const gameOver = isGameOver(room);
+            const gameOverBox = document.getElementById('game-over-box');
             
-            document.getElementById('turn-info').textContent = isMyTurn ? "Twoja tura!" : `Tura gracza: ${activePlayer ? activePlayer.name : ''}`;
-            document.getElementById('rolls-left').textContent = room.gameState.rollsLeft;
-            
-            const diceHtml = room.gameState.dice.map((d, i) => {
-                const held = room.gameState.heldDice[i] ? 'held' : '';
-                return `<div class="die ${held}" onclick="if(${isMyTurn}) socket.emit('hold', ${i})">${d}</div>`;
-            }).join('');
-            document.getElementById('dice-container').innerHTML = diceHtml;
+            if (gameOver) {
+                gameOverBox.style.display = 'block';
+                document.getElementById('turn-info').textContent = "Koniec gry! Sprawdź wyniki poniżej 🏆";
+                document.getElementById('roll-btn').disabled = true;
+            } else {
+                gameOverBox.style.display = 'none';
+                const activePlayer = room.players[room.currentPlayerIndex];
+                const isMyTurn = (activePlayer && activePlayer.id === myId);
+                
+                document.getElementById('turn-info').textContent = isMyTurn ? "Twoja tura!" : `Tura gracza: ${activePlayer ? activePlayer.name : ''}`;
+                document.getElementById('rolls-left').textContent = room.gameState.rollsLeft;
+                
+                const diceHtml = room.gameState.dice.map((d, i) => {
+                    const held = room.gameState.heldDice[i] ? 'held' : '';
+                    return `<div class="die ${held}" onclick="if(${isMyTurn}) socket.emit('hold', ${i})">${d}</div>`;
+                }).join('');
+                document.getElementById('dice-container').innerHTML = diceHtml;
 
-            document.getElementById('roll-btn').disabled = (!isMyTurn || room.gameState.rollsLeft === 0);
+                document.getElementById('roll-btn').disabled = (!isMyTurn || room.gameState.rollsLeft === 0);
+            }
 
-            renderTable(room, isMyTurn);
+            renderTable(room, !gameOver && (room.players[room.currentPlayerIndex]?.id === myId));
         }
     });
 
@@ -205,22 +232,17 @@
             return row + '</tr>';
         }
 
-        // 1. Szkoła
         SCHOOL.forEach(cat => tbody.innerHTML += renderRow(cat));
         tbody.innerHTML += renderBonusRow("Bonus Szkoła (+50)", getSchoolBonus);
 
-        // 2. Środek
         MIDDLE.forEach(cat => tbody.innerHTML += renderRow(cat));
         tbody.innerHTML += renderBonusRow("Bonus Środek (+50)", getMiddleBonus);
 
-        // 3. Dół
         BOTTOM.forEach(cat => tbody.innerHTML += renderRow(cat));
         tbody.innerHTML += renderBonusRow("Bonus Dół (+100)", getBottomBonus);
 
-        // 4. Szansa
         tbody.innerHTML += renderRow('Szansa');
 
-        // 5. Podsumowanie (SUMA)
         let totalRow = `<tr class="total-row"><td>SUMA</td>`;
         room.players.forEach(p => {
             let total = 0;
