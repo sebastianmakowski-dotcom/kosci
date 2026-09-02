@@ -54,16 +54,11 @@ function calculateScore(category, dice, isZreki) {
 }
 
 io.on('connection', (socket) => {
-    console.log(`[LOG] Nowe połączenie zweryfikowane: ${socket.id}`);
-
     socket.on('joinRoom', ({ roomId, playerName }) => {
-        console.log(`[LOG] Gracz "${playerName}" dołącza do pokoju: ${roomId}`);
         socket.join(roomId);
-
         if (!rooms[roomId]) {
             rooms[roomId] = { id: roomId, players: [], currentPlayerIndex: 0, gameState: { dice: [1,1,1,1,1], heldDice: [false,false,false,false,false], rollsLeft: 3, started: false, lastRollWasFull: false } };
         }
-
         const room = rooms[roomId];
         let player = room.players.find(p => p.id === socket.id);
         if (!player) {
@@ -72,16 +67,32 @@ io.on('connection', (socket) => {
         } else {
             player.currentRoom = roomId;
         }
-
-        // WYŚLIJ GLOBALNIE DO WSZYSTKICH (Przeglądarka zignoruje, jeśli to nie jej pokój)
         io.emit('updateRoom', room);
-        console.log(`[LOG] Wysłano globalny update dla pokoju ${roomId}. Liczba osób: ${room.players.length}`);
     });
 
     socket.on('startGame', () => {
         const playerRoom = Object.values(rooms).find(r => r.players.some(p => p.id === socket.id));
         if (playerRoom) {
             playerRoom.gameState.started = true;
+            io.emit('updateRoom', playerRoom);
+        }
+    });
+
+    // NOWA FUNKCJA: Reset gry do stanu początkowego z tymi samymi graczami
+    socket.on('restartGame', () => {
+        const playerRoom = Object.values(rooms).find(r => r.players.some(p => p.id === socket.id));
+        if (playerRoom) {
+            playerRoom.currentPlayerIndex = 0;
+            playerRoom.gameState = {
+                dice: [1,1,1,1,1],
+                heldDice: [false,false,false,false,false],
+                rollsLeft: 3,
+                started: true,
+                lastRollWasFull: false
+            };
+            playerRoom.players.forEach(p => {
+                p.scores = createInitialScores(CATEGORIES);
+            });
             io.emit('updateRoom', playerRoom);
         }
     });
@@ -136,7 +147,6 @@ io.on('connection', (socket) => {
                 io.emit('updateRoom', room);
             }
         });
-        console.log(`[LOG] Klient się rozłączył.`);
     });
 });
 
