@@ -60,13 +60,20 @@ io.on('connection', (socket) => {
             rooms[roomId] = { id: roomId, players: [], currentPlayerIndex: 0, gameState: { dice: [1,1,1,1,1], heldDice: [false,false,false,false,false], rollsLeft: 3, started: false, lastRollWasFull: false } };
         }
         const room = rooms[roomId];
-        let player = room.players.find(p => p.id === socket.id);
-        if (!player) {
-            player = { id: socket.id, name: playerName, currentRoom: roomId, scores: createInitialScores(CATEGORIES) };
-            room.players.push(player);
+
+        // SPRAWDZENIE: Czy gracz o takim imieniu już istnieje w tym pokoju?
+        let existingPlayer = room.players.find(p => p.name.toLowerCase() === playerName.toLowerCase());
+
+        if (existingPlayer) {
+            // Jeśli istnieje, po prostu aktualizujemy jego Socket ID (odzyskuje konto)
+            existingPlayer.id = socket.id;
+            existingPlayer.currentRoom = roomId;
         } else {
-            player.currentRoom = roomId;
+            // Jeśli to nowy gracz, dodajemy go normalnie
+            const newPlayer = { id: socket.id, name: playerName, currentRoom: roomId, scores: createInitialScores(CATEGORIES) };
+            room.players.push(newPlayer);
         }
+
         io.emit('updateRoom', room);
     });
 
@@ -78,7 +85,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // NOWA FUNKCJA: Reset gry do stanu początkowego z tymi samymi graczami
     socket.on('restartGame', () => {
         const playerRoom = Object.values(rooms).find(r => r.players.some(p => p.id === socket.id));
         if (playerRoom) {
@@ -138,15 +144,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        Object.keys(rooms).forEach(roomId => {
-            const room = rooms[roomId];
-            room.players = room.players.filter(p => p.id !== socket.id);
-            if (room.players.length === 0) delete rooms[roomId];
-            else {
-                if (room.currentPlayerIndex >= room.players.length) room.currentPlayerIndex = 0;
-                io.emit('updateRoom', room);
-            }
-        });
+        // Nie usuwamy gracza z tablicy od razu przy rozłączeniu, żeby imię i punkty zaczekały na jego powrót!
+        // Gracze są czyszczeni tylko przy restarcie lub całkowitym wygaśnięciu pokoju.
+        console.log(`[LOG] Klient się rozłączył (punkty zachowane).`);
     });
 });
 
